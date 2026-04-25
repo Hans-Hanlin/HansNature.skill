@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+"""
+Self-Nurture pre-commit hook.
+Runs verify_wiki_sync.py on staged files that match trigger paths.
+Installed to: {project}/.githooks/pre-commit
+"""
+import subprocess
+import sys
+from pathlib import Path
+
+def main():
+    verify_script = Path("scripts/verify_wiki_sync.py")
+    if not verify_script.exists():
+        sys.exit(0)
+
+    result = subprocess.run(
+        [sys.executable, str(verify_script)],
+        capture_output=False
+    )
+    sys.exit(result.returncode)
+
+if __name__ == "__main__":
+    main()

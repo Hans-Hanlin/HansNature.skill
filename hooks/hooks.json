@@ -1,0 +1,13 @@
+{
+  "description": "Self-Nurture SessionStart Hook — 偵測已安裝的專案並注入上下文",
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-hook.py\""
+      }
+    ]
+  },
+  "version": "1.0.0",
+  "platform": "cross-platform"
+}

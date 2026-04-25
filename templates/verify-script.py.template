@@ -1,0 +1,320 @@
+#!/usr/bin/env python3
+"""
+Self-Nurture 自養驗證腳本（參數化版）
+從天道降臨·文字三國 v3 萃取，通用化處理。
+
+Usage:
+  python scripts/verify_wiki_sync.py           # pre-commit mode (check staged files)
+  python scripts/verify_wiki_sync.py --report   # report mode (full health check)
+"""
+
+import sys
+import re
+import os
+from pathlib import Path
+from datetime import datetime
+
+# ═══════════════════════════════════════
+# 配置區（BIRTH 時根據專案類型生成）
+# ═══════════════════════════════════════
+
+PROJECT_ROOT = Path(".")
+WIKI_DIR = PROJECT_ROOT / "docs" / "project-wiki"
+INDEX_DIR = PROJECT_ROOT / "docs" / "_index"
+DEVLOG_DIR = PROJECT_ROOT / "docs" / "_dev-log"
+
+TRIGGER_PATHS = [
+    "docs/project-wiki/",
+    "docs/superpowers/specs/",
+    "docs/research/",
+]
+
+# ═══════════════════════════════════════
+# 硬檢查（FAIL 阻擋 commit）
+# ═══════════════════════════════════════
+
+def check_wiki_referenced(staged_files):
+    """H1: 每個 Wiki 頁面必須在 00-session-entry.md 被引用"""
+    entry = WIKI_DIR / "00-session-entry.md"
+    if not entry.exists():
+        return True, "✅ H1 跳過（00-session-entry.md 不存在）"
+    entry_content = entry.read_text(encoding="utf-8", errors="replace")
+    wiki_files = [f for f in staged_files if "project-wiki/" in f and "00-session-entry" not in f]
+    for wf in wiki_files:
+        basename = Path(wf).name
+        if basename not in entry_content:
+            return False, f"❌ H1 FAILED: {basename} 未在 00-session-entry.md 中引用\n   修復：在 00-session-entry.md 加入 [{basename}]({basename}) 連結"
+    return True, "✅ H1 通過"
+
+def check_cross_ref(staged_files):
+    """H2: 新 Wiki 頁面必須出現在 cross-reference.md"""
+    xref = INDEX_DIR / "cross-reference.md"
+    if not xref.exists():
+        return True, "✅ H2 跳過（cross-reference.md 不存在）"
+    xref_content = xref.read_text(encoding="utf-8", errors="replace")
+    wiki_files = [f for f in staged_files if "project-wiki/" in f and "00-session-entry" not in f]
+    for wf in wiki_files:
+        basename = Path(wf).stem
+        if basename not in xref_content:
+            return False, f"❌ H2 FAILED: {basename} 未在 cross-reference.md 中\n   修復：在 cross-reference.md 加入 {basename} 的對應行"
+    return True, "✅ H2 通過"
+
+def check_tags(staged_files):
+    """H3: 新 Wiki 頁面必須在 tags.md 有至少一個標籤"""
+    tags = INDEX_DIR / "tags.md"
+    if not tags.exists():
+        return True, "✅ H3 跳過（tags.md 不存在）"
+    tags_content = tags.read_text(encoding="utf-8", errors="replace")
+    wiki_files = [f for f in staged_files if "project-wiki/" in f and "00-session-entry" not in f]
+    for wf in wiki_files:
+        basename = Path(wf).stem
+        if basename not in tags_content:
+            return False, f"❌ H3 FAILED: {basename} 未在 tags.md 中\n   修復：在 tags.md 為 {basename} 加入至少一個標籤"
+    return True, "✅ H3 通過"
+
+def check_latest_current(staged_files):
+    """H4: LATEST.md 有合法日期格式"""
+    latest = DEVLOG_DIR / "LATEST.md"
+    if not latest.exists():
+        return False, "❌ H4 FAILED: LATEST.md 不存在\n   修復：建立 docs/_dev-log/LATEST.md"
+    content = latest.read_text(encoding="utf-8", errors="replace")
+    date_pattern = r"最後更新[：:]\s*\d{4}-\d{2}-\d{2}"
+    if not re.search(date_pattern, content):
+        return False, "❌ H4 FAILED: LATEST.md 缺少合法日期\n   修復：加入「最後更新：YYYY-MM-DD」"
+    return True, "✅ H4 通過"
+
+def check_formulas(staged_files):
+    """H5: Wiki 若引用 § 編號公式 → formulas.md 必須收錄"""
+    formulas = INDEX_DIR / "formulas.md"
+    if not formulas.exists():
+        return True, "✅ H5 跳過（formulas.md 不存在）"
+    formulas_content = formulas.read_text(encoding="utf-8", errors="replace")
+    wiki_files = [f for f in staged_files if "project-wiki/" in f]
+    for wf in wiki_files:
+        wf_path = Path(wf)
+        if not wf_path.exists():
+            continue
+        content = wf_path.read_text(encoding="utf-8", errors="replace")
+        refs = re.findall(r"§(\d+\.\d+)", content)
+        for ref in refs:
+            if f"§{ref}" not in formulas_content:
+                return False, f"❌ H5 FAILED: §{ref}（在 {wf_path.name}）未在 formulas.md 收錄\n   修復：在 formulas.md 加入 §{ref} 的定義"
+    return True, "✅ H5 通過"
+
+def check_spec_synced(staged_files):
+    """H6: 新 spec 文件必須在 LATEST.md 或 CONTINUITY.md 被提及"""
+    specs = [f for f in staged_files if "superpowers/specs/" in f]
+    if not specs:
+        return True, "✅ H6 跳過（無新 spec）"
+    latest = DEVLOG_DIR / "LATEST.md"
+    continuity = PROJECT_ROOT / "docs" / "CONTINUITY.md"
+    ref_content = ""
+    if latest.exists():
+        ref_content += latest.read_text(encoding="utf-8", errors="replace")
+    if continuity.exists():
+        ref_content += continuity.read_text(encoding="utf-8", errors="replace")
+    for spec in specs:
+        basename = Path(spec).stem
+        if basename not in ref_content:
+            return False, f"❌ H6 FAILED: {basename} 未在 LATEST.md 或 CONTINUITY.md 提及\n   修復：在 LATEST.md 或 CONTINUITY.md 提及此 spec"
+    return True, "✅ H6 通過"
+
+def check_dir_synced(staged_files):
+    """H7: 新增的子目錄必須在 LATEST.md 或 CONTINUITY.md 被提及"""
+    new_dirs = set()
+    for f in staged_files:
+        if f.startswith("docs/research/"):
+            parts = Path(f).parts
+            if len(parts) >= 3:
+                new_dirs.add(parts[2])
+    if not new_dirs:
+        return True, "✅ H7 跳過（無新目錄）"
+    latest = DEVLOG_DIR / "LATEST.md"
+    continuity = PROJECT_ROOT / "docs" / "CONTINUITY.md"
+    ref_content = ""
+    if latest.exists():
+        ref_content += latest.read_text(encoding="utf-8", errors="replace")
+    if continuity.exists():
+        ref_content += continuity.read_text(encoding="utf-8", errors="replace")
+    for d in new_dirs:
+        if d not in ref_content:
+            return False, f"❌ H7 FAILED: docs/research/{d}/ 未在 LATEST.md 或 CONTINUITY.md 提及\n   修復：在 LATEST.md 提及此目錄"
+    return True, "✅ H7 通過"
+
+# ═══════════════════════════════════════
+# 軟檢查（WARN 不阻擋）
+# ═══════════════════════════════════════
+
+def hint_glossary(staged_files):
+    """S1: Wiki 出現的專有名詞未在 glossary.md"""
+    glossary = INDEX_DIR / "glossary.md"
+    if not glossary.exists():
+        return True, "✅ S1 跳過（glossary.md 不存在）"
+    glossary_content = glossary.read_text(encoding="utf-8", errors="replace").lower()
+    wiki_files = [f for f in staged_files if "project-wiki/" in f]
+    unknown_terms = []
+    for wf in wiki_files:
+        wf_path = Path(wf)
+        if not wf_path.exists():
+            continue
+        content = wf_path.read_text(encoding="utf-8", errors="replace")
+        candidates = set(re.findall(r"\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b", content))
+        candidates.update(re.findall(r"\b[A-Z][A-Z_]{2,}\b", content))
+        for term in candidates:
+            if term.lower() not in glossary_content and term not in ("TODO", "FIXME", "HACK", "NOTE"):
+                unknown_terms.append(term)
+    if unknown_terms:
+        sample = ", ".join(unknown_terms[:5])
+        return True, f"⚠️ S1 WARNING: 發現 {len(unknown_terms)} 個未收錄術語：{sample}\n   建議：將這些術語加入 glossary.md"
+    return True, "✅ S1 通過"
+
+def hint_constants(staged_files):
+    """S2: 程式碼中的 magic number 未在 constants.md"""
+    constants = INDEX_DIR / "constants.md"
+    if not constants.exists():
+        return True, "✅ S2 跳過（constants.md 不存在）"
+    constants_content = constants.read_text(encoding="utf-8", errors="replace")
+    code_exts = {".py", ".js", ".ts", ".java", ".go", ".rs", ".c", ".cpp"}
+    magic_numbers = []
+    for f in staged_files:
+        fpath = Path(f)
+        if fpath.exists() and fpath.suffix in code_exts:
+            content = fpath.read_text(encoding="utf-8", errors="replace")
+            nums = re.findall(r"(?<!=\s)(?<!\w)(\d{2,}(?:\.\d+)?)\b", content)
+            for n in nums:
+                if n not in constants_content and float(n) > 2:
+                    magic_numbers.append((fpath.name, n))
+    if magic_numbers:
+        sample = ", ".join(f"{name}:{num}" for name, num in magic_numbers[:5])
+        return True, f"⚠️ S2 WARNING: 發現 {len(magic_numbers)} 個可能的 magic number：{sample}\n   建議：將常用常數加入 constants.md"
+    return True, "✅ S2 通過"
+
+def hint_gaps(staged_files):
+    """S3: 新增 TODO/FIXME/HACK 註解"""
+    for f in staged_files:
+        fpath = Path(f)
+        if fpath.exists() and fpath.suffix in (".py", ".js", ".ts", ".java", ".go", ".rs"):
+            content = fpath.read_text(encoding="utf-8", errors="replace")
+            todos = re.findall(r"(TODO|FIXME|HACK|XXX).*", content)
+            if todos:
+                return True, f"⚠️ S3 WARNING: {fpath.name} 有 {len(todos)} 個 TODO/FIXME\n   建議：在 gaps.md 記錄此知識缺口"
+    return True, "✅ S3 通過"
+
+# ═══════════════════════════════════════
+# 報告模式
+# ═══════════════════════════════════════
+
+def generate_report():
+    """Full health check report for /wiki-check"""
+    print("📊 Wiki 健康度報告")
+    print("━" * 30)
+
+    # Count wiki pages
+    wiki_pages = list(WIKI_DIR.glob("*.md")) if WIKI_DIR.exists() else []
+    print(f"Wiki 頁面：{len(wiki_pages)} 頁")
+
+    # Count index entries
+    print("索引覆蓋率：")
+    for name in ["glossary", "formulas", "constants", "tags", "architecture", "gaps"]:
+        idx = INDEX_DIR / f"{name}.md"
+        if idx.exists():
+            lines = [l for l in idx.read_text(encoding="utf-8", errors="replace").splitlines() if l.strip().startswith("|") and "---" not in l]
+            count = max(0, len(lines) - 1)  # subtract header row
+            print(f"  - {name}：{count} 項")
+        else:
+            print(f"  - {name}：（未建立）")
+
+    # Run all checks against all wiki files
+    all_wiki = [str(p.relative_to(PROJECT_ROOT)) for p in wiki_pages]
+    hard_checks = [check_wiki_referenced, check_cross_ref, check_tags, check_latest_current, check_formulas, check_spec_synced, check_dir_synced]
+    soft_checks = [hint_glossary, hint_constants, hint_gaps]
+
+    hard_pass = 0
+    hard_total = len(hard_checks)
+    for check in hard_checks:
+        passed, msg = check(all_wiki)
+        if passed:
+            hard_pass += 1
+    print(f"硬檢查：{hard_pass}/{hard_total} 通過")
+
+    soft_warns = 0
+    for check in soft_checks:
+        passed, msg = check(all_wiki)
+        if "WARNING" in msg:
+            soft_warns += 1
+    print(f"軟檢查：{soft_warns} 項建議")
+
+    # LATEST.md date
+    latest = DEVLOG_DIR / "LATEST.md"
+    if latest.exists():
+        content = latest.read_text(encoding="utf-8", errors="replace")
+        match = re.search(r"最後更新[：:]\s*(\d{4}-\d{2}-\d{2})", content)
+        print(f"LATEST.md 最後更新：{match.group(1) if match else '無日期'}")
+    else:
+        print("LATEST.md 最後更新：（不存在）")
+
+    # Hooks status
+    import subprocess
+    try:
+        result = subprocess.run(["git", "config", "--get", "core.hooksPath"], capture_output=True, text=True, timeout=5)
+        hooks = result.stdout.strip() or "未設定"
+    except Exception:
+        hooks = "無法偵測"
+    print(f"Hooks 狀態：{hooks}")
+    print("━" * 30)
+
+# ═══════════════════════════════════════
+# 主程式
+# ═══════════════════════════════════════
+
+def main():
+    # Report mode
+    if "--report" in sys.argv:
+        generate_report()
+        sys.exit(0)
+
+    # Pre-commit mode
+    import subprocess
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+        capture_output=True, text=True
+    )
+    staged = [f.strip() for f in result.stdout.strip().split("\n") if f.strip()]
+
+    triggered = any(
+        any(f.startswith(tp) for tp in TRIGGER_PATHS)
+        for f in staged
+    )
+
+    if not triggered:
+        sys.exit(0)
+
+    print("🔍 Self-Nurture 自養驗證中...")
+    print("=" * 50)
+
+    hard_checks = [check_wiki_referenced, check_cross_ref, check_tags, check_latest_current, check_formulas, check_spec_synced, check_dir_synced]
+    soft_checks = [hint_glossary, hint_constants, hint_gaps]
+
+    hard_failed = False
+    for check in hard_checks:
+        passed, msg = check(staged)
+        print(msg)
+        if not passed:
+            hard_failed = True
+
+    print("-" * 50)
+    for check in soft_checks:
+        passed, msg = check(staged)
+        print(msg)
+
+    print("=" * 50)
+    if hard_failed:
+        print("❌ 自養驗證失敗 — commit 已阻擋")
+        print("   請修復上述 FAILED 項目後重新 commit")
+        sys.exit(1)
+    else:
+        print("✅ 自養驗證通過")
+        sys.exit(0)
+
+if __name__ == "__main__":
+    main()

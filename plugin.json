@@ -1,0 +1,30 @@
+{
+  "name": "self-nurture",
+  "version": "1.0.0",
+  "description": "LLM Wiki + 自養閉環一站式框架 — 為任何專案建立 Wiki 骨架 + 7 索引 + 驗證閉環 + AI 主動發現",
+  "author": "User",
+  "commands": [
+    {
+      "name": "self-nurture",
+      "description": "啟動自養 — 建立 Wiki + 閉環自養系統",
+      "file": "commands/self-nurture.md"
+    },
+    {
+      "name": "wiki-check",
+      "description": "Wiki 健康檢查 — 跑完整驗證 + 產出報告",
+      "file": "commands/wiki-check.md"
+    }
+  ],
+  "hooks": {
+    "file": "hooks/hooks.json"
+  },
+  "keywords": [
+    "self-nurture",
+    "wiki",
+    "自養",
+    "閉環",
+    "knowledge",
+    "verification",
+    "session-protocol"
+  ]
+}

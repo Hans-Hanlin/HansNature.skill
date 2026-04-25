@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""
+Self-Nurture hook installer.
+Sets git core.hooksPath to .githooks and verifies pre-commit exists.
+Run: python scripts/install_hooks.py
+"""
+import subprocess
+import stat
+import sys
+from pathlib import Path
+
+
+def main():
+    hooks_dir = Path(".githooks")
+    pre_commit = hooks_dir / "pre-commit"
+
+    hooks_dir.mkdir(exist_ok=True)
+
+    if not pre_commit.exists():
+        print("❌ .githooks/pre-commit 不存在")
+        print("   請先執行 /self-nurture 安裝自養系統")
+        sys.exit(1)
+
+    try:
+        pre_commit.chmod(pre_commit.stat().st_mode | stat.S_IEXEC)
+    except Exception:
+        pass
+
+    result = subprocess.run(
+        ["git", "config", "core.hooksPath", ".githooks"],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"❌ git config 設定失敗: {result.stderr}")
+        sys.exit(1)
+
+    result = subprocess.run(
+        ["git", "config", "--get", "core.hooksPath"],
+        capture_output=True, text=True
+    )
+    actual = result.stdout.strip()
+    if actual == ".githooks":
+        print("✅ Self-Nurture hooks 安裝完成")
+        print(f"   core.hooksPath = {actual}")
+        print(f"   pre-commit = {pre_commit}")
+    else:
+        print(f"⚠️ 設定值不符預期: {actual}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
