@@ -47,10 +47,10 @@ Clone this repo into your Claude Code skills directory:
 
 ```bash
 # Linux / macOS
-git clone https://github.com/langlive04-crypto/HansNature.skill.git ~/.claude/skills/self-nurture
+git clone https://github.com/Hans-Hanlin/HansNature.skill.git ~/.claude/skills/self-nurture
 
 # Windows
-git clone https://github.com/langlive04-crypto/HansNature.skill.git %USERPROFILE%\.claude\skills\self-nurture
+git clone https://github.com/Hans-Hanlin/HansNature.skill.git %USERPROFILE%\.claude\skills\self-nurture
 ```
 
 Or copy the files manually to `~/.claude/skills/self-nurture/`.
