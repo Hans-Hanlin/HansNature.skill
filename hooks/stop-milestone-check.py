@@ -87,7 +87,7 @@ def main():
         "建議：分批 commit → 更新 LATEST.md → 檢查自養觸發規則",
     ])
 
-    print(json.dumps({"decision": "allow", "systemMessage": msg}, ensure_ascii=False))
+    print(json.dumps({"decision": "approve", "systemMessage": msg}, ensure_ascii=False))
     return 0
 
 

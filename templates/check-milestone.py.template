@@ -123,9 +123,9 @@ def main():
         "3. 檢查自養觸發規則（新術語/常數/公式？）",
     ])
 
-    # Output as JSON for Stop hook
+    # Output as JSON for Stop hook (decision must be "approve" or "block")
     output = json.dumps({
-        "decision": "allow",  # Never block
+        "decision": "approve",  # Never block
         "systemMessage": "\n".join(msg_lines)
     }, ensure_ascii=False)
     print(output)
