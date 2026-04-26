@@ -1,13 +1,19 @@
 {
-  "description": "Self-Nurture SessionStart Hook — 偵測已安裝的專案並注入上下文",
+  "description": "Self-Nurture Hooks — SessionStart 注入上下文 + Stop 里程碑安全網",
   "hooks": {
     "SessionStart": [
       {
         "type": "command",
         "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start-hook.py\""
       }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-milestone-check.py\""
+      }
     ]
   },
-  "version": "1.0.0",
+  "version": "1.0.1",
   "platform": "cross-platform"
 }

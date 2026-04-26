@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""
+Self-Nurture Stop Hook — Milestone Check (v3 Safety Net)
+
+Post-turn safety net that detects when AI has been working without
+committing or updating LATEST.md. Injects a reminder only when needed.
+
+Behavior:
+- Quiet mode: no warning = no output (doesn't interrupt workflow)
+- Only speaks on: ≥10 files changed / ≥300 lines diff / LATEST outdated >4h
+- Pure read-only: never writes files, never modifies git state
+- Always exits 0: never blocks Claude's turn
+
+Installed to: {project}/scripts/check_milestone.py
+Triggered by: Stop hook in .claude/settings.json
+"""
+import json
+import subprocess
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+# ═══════════════════════════════════════
+# Thresholds (adjustable per project)
+# ═══════════════════════════════════════
+MAX_FILES_BEFORE_WARN = 10
+MAX_LINES_BEFORE_WARN = 300
+LATEST_STALE_HOURS = 4
+
+def get_uncommitted_stats():
+    """Count uncommitted changed files and diff lines."""
+    try:
+        # Changed files (staged + unstaged)
+        result = subprocess.run(
+            ["git", "diff", "--shortstat", "HEAD"],
+            capture_output=True, text=True, timeout=5
+        )
+        stat_line = result.stdout.strip()
+        if not stat_line:
+            return 0, 0
+
+        files_changed = 0
+        lines_changed = 0
+
+        import re
+        files_match = re.search(r"(\d+) files? changed", stat_line)
+        insert_match = re.search(r"(\d+) insertions?", stat_line)
+        delete_match = re.search(r"(\d+) deletions?", stat_line)
+
+        if files_match:
+            files_changed = int(files_match.group(1))
+        if insert_match:
+            lines_changed += int(insert_match.group(1))
+        if delete_match:
+            lines_changed += int(delete_match.group(1))
+
+        # Also count untracked files
+        result2 = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, timeout=5
+        )
+        untracked = len([l for l in result2.stdout.splitlines() if l.startswith("??")])
+        files_changed += untracked
+
+        return files_changed, lines_changed
+    except Exception:
+        return 0, 0
+
+
+def check_latest_freshness():
+    """Check if LATEST.md was updated recently."""
+    latest = Path("docs/_dev-log/LATEST.md")
+    if not latest.exists():
+        return None  # No LATEST.md = not a self-nurture project
+
+    try:
+        import re
+        content = latest.read_text(encoding="utf-8", errors="replace")
+        match = re.search(r"最後更新[：:]\s*(\d{4}-\d{2}-\d{2})", content)
+        if match:
+            last_date = datetime.strptime(match.group(1), "%Y-%m-%d")
+            age = datetime.now() - last_date
+            return age
+        # Also check file mtime as fallback
+        mtime = datetime.fromtimestamp(latest.stat().st_mtime)
+        return datetime.now() - mtime
+    except Exception:
+        return None
+
+
+def main():
+    # Only run if self-nurture is installed
+    if not Path("docs/project-wiki").exists():
+        return 0
+
+    warnings = []
+
+    # Check 1: Uncommitted changes scale
+    files, lines = get_uncommitted_stats()
+    if files >= MAX_FILES_BEFORE_WARN:
+        warnings.append(f"🔴 {files} 個檔案未 commit（閾值 {MAX_FILES_BEFORE_WARN}）")
+    if lines >= MAX_LINES_BEFORE_WARN:
+        warnings.append(f"🔴 {lines} 行 diff 未 commit（閾值 {MAX_LINES_BEFORE_WARN}）")
+
+    # Check 2: LATEST.md freshness
+    age = check_latest_freshness()
+    if age and age > timedelta(hours=LATEST_STALE_HOURS):
+        hours = int(age.total_seconds() / 3600)
+        warnings.append(f"🟡 LATEST.md 已 {hours} 小時未更新（閾值 {LATEST_STALE_HOURS}h）")
+
+    # Quiet mode: no warning = no output
+    if not warnings:
+        return 0
+
+    # Build injection message
+    msg_lines = ["⚠️ Self-Nurture 自養提醒：", ""]
+    msg_lines.extend(warnings)
+    msg_lines.extend([
+        "",
+        "建議：",
+        "1. 分批 commit 當前變更",
+        "2. 更新 docs/_dev-log/LATEST.md",
+        "3. 檢查自養觸發規則（新術語/常數/公式？）",
+    ])
+
+    # Output as JSON for Stop hook
+    output = json.dumps({
+        "decision": "allow",  # Never block
+        "systemMessage": "\n".join(msg_lines)
+    }, ensure_ascii=False)
+    print(output)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -16,7 +16,8 @@
 6. **生成狀態管理層** — CURRENT_STATUS/LEDGER/CONTINUITY/LATEST
 7. **安裝自養規則** — CLAUDE.md 追加（含哨兵標記偵測冪等）
 8. **安裝驗證閉環** — verify_wiki_sync.py + pre-commit + install_hooks.py
-9. **驗證安裝** — 確認 hooks 就位
+8b. **安裝 Stop hook 安全網** — check_milestone.py（偵測大量未 commit 變更 + LATEST 過期）
+9. **驗證安裝** — 確認 hooks 就位（SessionStart + Stop + pre-commit）
 10. **寫首個記錄** — dev-log + _usage-log
 
 ### 再次使用（已安裝）

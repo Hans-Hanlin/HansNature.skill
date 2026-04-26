@@ -1,6 +1,6 @@
 {
   "name": "self-nurture",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "LLM Wiki + 自養閉環一站式框架 — 為任何專案建立 Wiki 骨架 + 7 索引 + 驗證閉環 + AI 主動發現",
   "author": "User",
   "commands": [
