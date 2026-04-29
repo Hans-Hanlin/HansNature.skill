@@ -6,8 +6,8 @@ Runs after each Claude turn. Detects large uncommitted changes
 or stale LATEST.md and injects a reminder. Quiet mode: no warning
 = no output. Never blocks. Always exits 0. Pure read-only.
 
-Origin: reverse-engineered from 天道降臨 v3 self-nurturing failure
-where AI completed 81 files / 6156 lines without committing.
+Origin: reverse-engineered from a production project where AI completed
+81 files / 6156 lines without committing — a real-world self-nurturing failure.
 """
 import json
 import re

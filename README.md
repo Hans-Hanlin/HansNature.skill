@@ -158,7 +158,7 @@ your-project/
 
 ## Origin
 
-This skill was reverse-engineered from a production self-nurturing system built for the「天道降臨 — 文字三國」game development project, which achieved a v3 maturity rating with:
+This skill was reverse-engineered from a production self-nurturing system that evolved organically over 5 days of intensive development, achieving a v3 maturity rating with:
 
 - 7 hard checks + 3 soft checks
 - 25 research Wiki pages + 12 engineering Wiki pages
